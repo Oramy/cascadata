@@ -1,0 +1,39 @@
+#pragma kernel CSMain
+// Create a RenderTexture with enableRandomWrite flag and set it
+// with cs.SetTexture
+RWTexture2D<float3> Result;
+Texture2D<float> ImageInput;
+float2 flip;
+
+uniform float dataScale;
+uniform float threshold;
+uniform float stepx;
+uniform float stepy;
+uniform float width;
+uniform float height;
+
+float3 sobel(float2 center) {
+    // get samples around pixel
+    float tleft = ImageInput[center + float2(-stepx, stepy)];
+    float left = ImageInput[center + float2(-stepx, 0)];
+    float bleft = ImageInput[center + float2(-stepx, -stepy)];
+    float top = ImageInput[center + float2(0, stepy)];
+    float bottom = ImageInput[center + float2(0, -stepy)];
+    float tright = ImageInput[center + float2(stepx, stepy)];
+    float right = ImageInput[center + float2(stepx, 0)];
+    float bright = ImageInput[center + float2(stepx, -stepy)];
+
+    float x = tleft + 2.0 * left + bleft - tright - 2.0 * right - bright;
+    float y = -tleft - 2.0 * top - tright + bleft + 2.0 * bottom + bright;
+    float color = sqrt((x * x) + (y * y));
+    return float3(x > 0 ? x * color * 100 : 0, x < 0 ? -x * 100 * color : 0, 1.0);
+}
+
+[numthreads(8, 8, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    flip = float2(width, height) - id.xy;
+    float res = float((ImageInput[flip] > threshold || ImageInput[flip]==0 ? 0 : 1));
+
+    Result[id.xy] = res > 0 ? dataScale * sobel(flip) * res : float3(0, 0, 0);
+}
